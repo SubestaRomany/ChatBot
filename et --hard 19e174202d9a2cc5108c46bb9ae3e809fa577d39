@@ -1,0 +1,23 @@
+[33mcommit d61692afcef5cc3aac501bdfcb6eb44f6b165327[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: unknown <you@example.com>
+Date:   Sat Jul 12 01:52:27 2025 +0300
+
+    third version
+
+[33mcommit 973f8685ed866e3e32082272a16e1717c82bb9ab[m
+Author: unknown <you@example.com>
+Date:   Sat Jul 12 01:49:33 2025 +0300
+
+    third version
+
+[33mcommit 19e174202d9a2cc5108c46bb9ae3e809fa577d39[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: unknown <you@example.com>
+Date:   Sat Jul 12 01:40:58 2025 +0300
+
+    second version
+
+[33mcommit 189f6c3d62be9090ce3367c9acfe970c64f7aab9[m
+Author: unknown <you@example.com>
+Date:   Fri Jul 11 04:09:14 2025 +0300
+
+    first commit
