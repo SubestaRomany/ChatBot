@@ -232,11 +232,20 @@ async function handleCustomerService(from, state, subservice) {
     (r.subservice?.trim() || "") === (subservice?.trim() || "")
   );
 
-  if (!match) {
-    await sendTextMessage(from, "❌ لا يوجد فني مسجل في هذا الحي للخدمة المطلوبة حالياً.");
-    delete userStates[from];
-    return;
-  }
+ if (!match) {
+  await sendTextMessage(from, "❌ لا يوجد فني مسجل في هذا الحي للخدمة المطلوبة حالياً.");
+
+  userStates[from] = { step: "choose_mode" }; // رجعه يختار من جديد
+
+  await sendButtonsMessage(
+    from,
+    "📋 هل تريد إعادة المحاولة؟",
+    "اختر نوع المستخدم من جديد:",
+    ["1 - طلب خدمة", "2 - مقدم خدمة"]
+  );
+
+  return;
+}
 
   await sendTextMessage(from,
     `اضغط على رابط واتس المختص التالي وارسل له رقم 1 وسيتواصل معك:
