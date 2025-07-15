@@ -56,12 +56,7 @@ app.post("/", async (req, res) => {
 
   if (!userStates[from]) {
     userStates[from] = { step: "choose_mode" };
-    await sendButtonsMessage(
-      from,
-      "مرحباً بك في واتس الأجاويد",
-      "اختر نوع المستخدم:\n\n📝 ملاحظة: يمكنك في أي وقت كتابة 'تاني' أو 'start' للعودة إلى القائمة الرئيسية.",
-      ["1 - طلب خدمة", "2 - مقدم خدمة"]
-    );
+    await sendButtonsMessage(from, "مرحباً بك في واتس الأجاويد", "اختر نوع المستخدم:", ["1 - طلب خدمة", "2 - مقدم خدمة"]);
     return res.sendStatus(200);
   }
 
@@ -89,16 +84,19 @@ app.post("/", async (req, res) => {
         state.step = "collect_national_id";
         await sendTextMessage(from, "🪪 أدخل رقم الهوية الوطنية:");
         break;
+
       case "collect_national_id":
         state.id = input;
         state.step = "collect_district";
         await sendListMessage(from, "📍 اختيار الحي", "اختر الحي:", "الأحياء", districts);
         break;
+
       case "collect_district":
         state.district = input;
         state.step = "collect_service";
         await sendListMessage(from, "🛠️ الخدمة", "اختر نوع الخدمة:", "الخدمات", services);
         break;
+
       case "collect_service":
         state.service = input;
         if (subservices[input]) {
@@ -110,11 +108,13 @@ app.post("/", async (req, res) => {
           await sendTextMessage(from, "📄 أرسل رابط الشهادة (Google Drive أو Dropbox):");
         }
         break;
+
       case "collect_subservice":
         state.subservice = input;
         state.step = "collect_certificate_url";
         await sendTextMessage(from, "📄 أرسل رابط الشهادة (Google Drive أو Dropbox):");
         break;
+
       case "collect_certificate_url":
         if (!input.startsWith("http")) {
           await sendTextMessage(from, "❌ الرابط غير صحيح. أرسل رابط يبدأ بـ http أو https.");
@@ -137,6 +137,7 @@ app.post("/", async (req, res) => {
         state.step = "collect_service";
         await sendListMessage(from, "🛠️ الخدمة", "اختر نوع الخدمة:", "الخدمات", services);
         break;
+
       case "collect_service":
         state.service = input;
         if (subservices[input]) {
@@ -146,6 +147,7 @@ app.post("/", async (req, res) => {
           await handleCustomerService(from, state, "");
         }
         break;
+
       case "choose_subservice":
         await handleCustomerService(from, state, input);
         break;
@@ -153,14 +155,8 @@ app.post("/", async (req, res) => {
     return res.sendStatus(200);
   }
 
-  // Fallback: أي رسالة غير مفهومة
   userStates[from] = { step: "choose_mode" };
-  await sendButtonsMessage(
-    from,
-    "❗ لم أفهم رسالتك",
-    "اختر نوع المستخدم للبدء من جديد:",
-    ["1 - طلب خدمة", "2 - مقدم خدمة"]
-  );
+  await sendButtonsMessage(from, "مرحبا بك من جديد!", "اختر نوع المستخدم:", ["1 - طلب خدمة", "2 - مقدم خدمة"]);
   return res.sendStatus(200);
 });
 
@@ -171,46 +167,43 @@ async function handleCustomerService(from, state, subservice) {
   const techSheet = doc.sheetsByTitle["Technicians"];
   const rows = await techSheet.getRows();
 
-  const target = `${state.service}${subservice ? " - " + subservice : ""}`.trim();
-
   const match = rows.find(r =>
     r.district?.trim() === state.district?.trim() &&
-    r.service?.trim() === target
+    r.service?.trim() === state.service?.trim() &&
+    (r.subservice?.trim() || "") === (subservice?.trim() || "")
   );
 
   if (!match) {
-    await sendTextMessage(from, "❌ لا يوجد فني مسجل في هذا الحي للخدمة المطلوبة حالياً.\n\n📝 يمكنك كتابة 'تاني' أو 'ابدأ' للرجوع للقائمة الرئيسية.");
-    userStates[from] = { step: "choose_mode" };
-    await sendButtonsMessage(
-      from,
-      "🚀 هل ترغب في إعادة المحاولة؟",
-      "اختر نوع المستخدم من جديد:",
-      ["1 - طلب خدمة", "2 - مقدم خدمة"]
-    );
+    await sendTextMessage(from, "❌ لا يوجد فني مسجل في هذا الحي للخدمة المطلوبة حالياً.");
+    delete userStates[from];
     return;
   }
 
-  if (target.includes("دروس")) {
+  if (subservice === "دروس") {
     await sendTextMessage(from, "📚 رابط قناة الدروس:\nhttps://t.me/Englishstudy2030");
+  } else if (subservice === "قرطاسية") {
+    await sendTextMessage(from, `📦 للتواصل مع المسؤول عن القرطاسية:
+https://wa.me/${match.phone}`);
   } else {
     await sendTextMessage(from,
-      `اضغط على رابط واتس المختص التالي وارسل له رقم 1 و سيتواصل معك :
+      `اضغط على رابط واتس المختص التالي وارسل له رقم 1 وسيتواصل معك:
 
 https://wa.me/${match.phone}
 
 الحي: ${state.district}
-الخدمة: ${target}
+الخدمة: ${state.service}${subservice ? " - " + subservice : ""}
 
-علما أن التنفيذ والاتفاق يكون بينكما وهذه المنصة وسيطة، دون أدنى مسؤولية.`);
-
-    const reqSheet = doc.sheetsByTitle["Requests"];
-    await reqSheet.addRow({
-      date: new Date().toLocaleString("ar-EG"),
-      service: target,
-      district: state.district,
-      phone: from
-    });
+علماً أن التنفيذ والاتفاق يكون بينكما وهذه المنصة وسيطة، دون أدنى مسؤولية.`);
   }
+
+  const reqSheet = doc.sheetsByTitle["Requests"];
+  await reqSheet.addRow({
+    date: new Date().toLocaleString("ar-EG"),
+    service: state.service,
+    subservice: subservice,
+    district: state.district,
+    phone: from
+  });
 
   delete userStates[from];
 }
@@ -288,7 +281,8 @@ async function saveTechnicianToSheet(state) {
     name: state.name,
     id: state.id,
     district: state.district,
-    service: `${state.service}${state.subservice ? " - " + state.subservice : ""}`,
+    service: state.service,
+    subservice: state.subservice || "",
     phone: state.phone,
     certificate: state.certificate,
     submitted_at: new Date().toLocaleString("ar-EG"),
