@@ -48,17 +48,32 @@ app.post("/", async (req, res) => {
     message?.interactive?.button_reply?.title?.trim() ||
     message?.interactive?.list_reply?.title?.trim();
 
-  if (["تاني", "ابدأ", "start"].includes(input.toLowerCase())) {
-    userStates[from] = { step: "choose_mode" };
-    await sendButtonsMessage(from, "مرحبا بك في واتس الأجاويد", "اختر نوع المستخدم:", ["1 - طلب خدمة", "2 - مقدم خدمة"]);
-    return res.sendStatus(200);
-  }
 
-  if (!userStates[from]) {
-    userStates[from] = { step: "choose_mode" };
-    await sendButtonsMessage(from, "مرحباً بك في واتس الأجاويد", "اختر نوع المستخدم:", ["1 - طلب خدمة", "2 - مقدم خدمة"]);
-    return res.sendStatus(200);
-  }
+// ✅ إعادة التشغيل
+if (["تاني", "ابدأ", "start"].includes(input.toLowerCase())) {
+  userStates[from] = { step: "choose_mode" };
+  await sendButtonsMessage(
+    from,
+    "مرحبا بك في واتس الأجاويد",
+    "اختر نوع المستخدم:",
+    ["1 - طلب خدمة", "2 - مقدم خدمة"]
+  );
+  return res.sendStatus(200);
+}
+
+// ✅ أول مرة يرسل المستخدم فيها
+if (!userStates[from]) {
+  userStates[from] = { step: "choose_mode" };
+  await sendButtonsMessage(
+    from,
+    "مرحباً بك في واتس الأجاويد",
+    "اختر نوع المستخدم:\n\n📝 ملاحظة: يمكنك في أي وقت كتابة 'تاني' أو 'start' للعودة إلى القائمة الرئيسية.",
+    ["1 - طلب خدمة", "2 - مقدم خدمة"]
+  );
+  return res.sendStatus(200);
+}
+
+
 
   const state = userStates[from];
 
@@ -163,6 +178,48 @@ app.post("/", async (req, res) => {
 });
 
 async function handleCustomerService(from, state, subservice) {
+  // ✅ أولاً: لو "دروس" أو "قرطاسية"، نرسل الرابط ونخزن الطلب بدون البحث عن فني
+  if (subservice === "دروس") {
+    await sendTextMessage(from, "📚 رابط قناة الدروس:\nhttps://t.me/Englishstudy2030");
+
+    // ✅ تسجيل الطلب في الشيت
+    const doc = new GoogleSpreadsheet(sheetId);
+    await doc.useServiceAccountAuth(creds);
+    await doc.loadInfo();
+    const reqSheet = doc.sheetsByTitle["Requests"];
+    await reqSheet.addRow({
+      date: new Date().toLocaleString("ar-EG"),
+      service: state.service,
+      subservice: subservice,
+      district: state.district,
+      phone: from
+    });
+
+    delete userStates[from];
+    return;
+  }
+
+  if (subservice === "قرطاسية") {
+    await sendTextMessage(from, "📦 للتواصل مع المسؤول عن القرطاسية:\nhttps://wa.me/966571079909"); // ✅ غيّري الرقم هنا
+
+    // ✅ تسجيل الطلب في الشيت
+    const doc = new GoogleSpreadsheet(sheetId);
+    await doc.useServiceAccountAuth(creds);
+    await doc.loadInfo();
+    const reqSheet = doc.sheetsByTitle["Requests"];
+    await reqSheet.addRow({
+      date: new Date().toLocaleString("ar-EG"),
+      service: state.service,
+      subservice: subservice,
+      district: state.district,
+      phone: from
+    });
+
+    delete userStates[from];
+    return;
+  }
+
+  // باقي الحالات العادية → نبحث عن فني
   const doc = new GoogleSpreadsheet(sheetId);
   await doc.useServiceAccountAuth(creds);
   await doc.loadInfo();
@@ -181,14 +238,8 @@ async function handleCustomerService(from, state, subservice) {
     return;
   }
 
-  if (subservice === "دروس") {
-    await sendTextMessage(from, "📚 رابط قناة الدروس:\nhttps://t.me/Englishstudy2030");
-  } else if (subservice === "قرطاسية") {
-    await sendTextMessage(from, `📦 للتواصل مع المسؤول عن القرطاسية:
-https://wa.me/${match.phone}`);
-  } else {
-    await sendTextMessage(from,
-      `اضغط على رابط واتس المختص التالي وارسل له رقم 1 وسيتواصل معك:
+  await sendTextMessage(from,
+    `اضغط على رابط واتس المختص التالي وارسل له رقم 1 وسيتواصل معك:
 
 https://wa.me/${match.phone}
 
@@ -196,7 +247,6 @@ https://wa.me/${match.phone}
 الخدمة: ${state.service}${subservice ? " - " + subservice : ""}
 
 علماً أن التنفيذ والاتفاق يكون بينكما وهذه المنصة وسيطة، دون أدنى مسؤولية.`);
-  }
 
   const reqSheet = doc.sheetsByTitle["Requests"];
   await reqSheet.addRow({
