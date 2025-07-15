@@ -130,30 +130,32 @@ app.post("/", async (req, res) => {
     return res.sendStatus(200);
   }
 
-  if (state.mode === "customer") {
-    switch (state.step) {
-      case "collect_district":
-        state.district = input;
-        state.step = "collect_service";
-        await sendListMessage(from, "🛠️ الخدمة", "اختر نوع الخدمة:", "الخدمات", services);
-        break;
+ if (state.mode === "customer") {
+  switch (state.step) {
+    case "collect_district":
+      state.district = input;
+      state.step = "collect_service";
+      await sendListMessage(from, "🛠️ الخدمة", "اختر نوع الخدمة:", "الخدمات", services);
+      break;
 
-      case "collect_service":
-        state.service = input;
-        if (subservices[input]) {
-          state.step = "choose_subservice";
-          await sendListMessage(from, `🛠️ ${input}`, "اختر نوع الفرع:", "أنواع الخدمة", subservices[input]);
-        } else {
-          await handleCustomerService(from, state, "");
-        }
-        break;
+    case "collect_service":
+      state.service = input;
+      if (subservices[input]) {
+        state.step = "choose_subservice";
+        await sendListMessage(from, `🛠️ ${input}`, "اختر نوع الفرع:", "أنواع الخدمة", subservices[input]);
+      } else {
+        await handleCustomerService(from, state, "");
+      }
+      break;
 
-      case "choose_subservice":
-        await handleCustomerService(from, state, input);
-        break;
-    }
-    return res.sendStatus(200);
+    case "choose_subservice":
+      state.subservice = input;
+      await handleCustomerService(from, state, input);
+      break;
   }
+  return res.sendStatus(200);
+}
+
 
   userStates[from] = { step: "choose_mode" };
   await sendButtonsMessage(from, "مرحبا بك من جديد!", "اختر نوع المستخدم:", ["1 - طلب خدمة", "2 - مقدم خدمة"]);
