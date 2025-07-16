@@ -191,31 +191,35 @@ async function handleCustomerService(from, state, subservice) {
   }
 
   if (subservice === "قرطاسية") {
-    const techSheet = doc.sheetsByTitle["Technicians"];
-    const rows = await techSheet.getRows();
-  const stationeryPerson = rows.find(r =>
-  r.service?.toLowerCase().trim() === "قرطاسية ودروس".toLowerCase() &&
-  r.subservice?.toLowerCase().trim() === "قرطاسية".toLowerCase()
-);
+  const techSheet = doc.sheetsByTitle["Technicians"];
+  const rows = await techSheet.getRows();
 
-    if (stationeryPerson?.phone) {
-      await sendTextMessage(from, `📦 للتواصل مع المسؤول عن القرطاسية:\nhttps://wa.me/${stationeryPerson.phone}`);
-    } else {
-     await sendTextMessage(from, "❌ لا يوجد فني مسجل في هذا الحي للخدمة المطلوبة حالياً.");
-     userStates[from] = { step: "choose_mode" };
-     await sendButtonsMessage(from, "📋 هل تريد إعادة المحاولة؟", "اختر نوع المستخدم من جديد:", ["1 - طلب خدمة", "2 - مقدم خدمة"]);
-     return;
-    }
-    await reqSheet.addRow({
-      date: new Date().toLocaleString("ar-EG"),
-      service: state.service,
-      subservice,
-      district: state.district,
-      phone: from
-    });
-    delete userStates[from];
+  const stationeryPerson = rows.find(r =>
+    r.service?.toLowerCase().trim() === "قرطاسية ودروس".toLowerCase() &&
+    r.subservice?.toLowerCase().trim() === "قرطاسية".toLowerCase() &&
+    r.district?.trim() === state.district?.trim()
+  );
+
+  if (stationeryPerson?.phone) {
+    await sendTextMessage(from, `📦 للتواصل مع المسؤول عن القرطاسية:\nhttps://wa.me/${stationeryPerson.phone}`);
+  } else {
+    await sendTextMessage(from, "❌ لا يوجد فني مسجل في هذا الحي لخدمة القرطاسية.");
+    userStates[from] = { step: "choose_mode" };
+    await sendButtonsMessage(from, "📋 هل تريد إعادة المحاولة؟", "اختر نوع المستخدم من جديد:", ["1 - طلب خدمة", "2 - مقدم خدمة"]);
     return;
   }
+
+  await reqSheet.addRow({
+    date: new Date().toLocaleString("ar-EG"),
+    service: state.service,
+    subservice,
+    district: state.district,
+    phone: from
+  });
+
+  delete userStates[from];
+  return;
+}
 
   const techSheet = doc.sheetsByTitle["Technicians"];
   const rows = await techSheet.getRows();
