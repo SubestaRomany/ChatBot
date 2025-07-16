@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "subesta2025";
-const token = "EAAQNJ0oTVFABO6qOkSIZB5pNEyFJj533ZBZBM52R85QsEJWOYZAZC1GkG76SfBPly2NFQH7dKfsMUiQ6u6ZCfgcYBMCuymoU8W0esDY3q3VMHy9EFo3yThb9RrfKAZBEpnMK4omKI30GZCeZA30ZAjCL5BV3Rk1OCoojfkA6UsffYSshEKQ5izcZA8lhVSfj28S8H25jAZDZD";
+const token = "EAAQNJ0oTVFAB..."; // اختصرته هنا
 const phone_number_id = "700625943131354";
 const sheetId = "1HMS3lcMRs6h_Xhr4Z73fQFbBiyzcZfIK06FIkK1cW0E";
 
@@ -27,13 +27,6 @@ const subservices = {
   "تبريد": ["صيانة (مكيفات-ثلاجات-غسالات)", "شراء جهاز جديد"],
   "قرطاسية ودروس": ["قرطاسية", "دروس"]
 };
-
-async function loadDoc() {
-  const doc = new GoogleSpreadsheet(sheetId);
-  await doc.useServiceAccountAuth(creds);
-  await doc.loadInfo();
-  return doc;
-}
 
 app.get("/", (req, res) => {
   const mode = req.query["hub.mode"];
@@ -93,22 +86,77 @@ app.post("/", async (req, res) => {
     return res.sendStatus(200);
   }
 
+  if (state.mode === "technician") {
+    switch (state.step) {
+      case "collect_name":
+        state.name = input;
+        state.step = "collect_national_id";
+        await sendTextMessage(from, "🪪 أدخل رقم الهوية الوطنية:");
+        break;
+
+      case "collect_national_id":
+        state.id = input;
+        state.step = "collect_district";
+        await sendListMessage(from, "📍 اختيار الحي", "اختر الحي:", "الأحياء", districts);
+        break;
+
+      case "collect_district":
+        state.district = input;
+        state.step = "collect_service";
+        await sendListMessage(from, "🛠 الخدمة", "اختر نوع الخدمة:", "الخدمات", services);
+        break;
+
+      case "collect_service":
+        state.service = input;
+        if (subservices[input]) {
+          state.step = "collect_subservice";
+          await sendListMessage(from, `🛠 ${input}`, "اختر نوع الفرع:", "أنواع الخدمة", subservices[input]);
+        } else {
+          state.subservice = "";
+          state.step = "collect_certificate_url";
+          await sendTextMessage(from, "📄 أرسل رابط الشهادة (Google Drive أو Dropbox):");
+        }
+        break;
+
+      case "collect_subservice":
+        state.subservice = input;
+        state.step = "collect_certificate_url";
+        await sendTextMessage(from, "📄 أرسل رابط الشهادة (Google Drive أو Dropbox):");
+        break;
+
+      case "collect_certificate_url":
+        if (!input.startsWith("http")) {
+          await sendTextMessage(from, "❌ الرابط غير صحيح. أرسل رابط يبدأ بـ http أو https.");
+          return res.sendStatus(200);
+        }
+        state.certificate = input;
+        state.phone = from;
+        await saveTechnicianToSheet(state);
+        await sendTextMessage(from, "✅ تم تسجيل بياناتك بنجاح. سيتم التواصل معك بعد المراجعة.");
+        delete userStates[from];
+        break;
+    }
+    return res.sendStatus(200);
+  }
+
   if (state.mode === "customer") {
     switch (state.step) {
       case "collect_district":
         state.district = input;
         state.step = "collect_service";
-        await sendListMessage(from, "🛠️ الخدمة", "اختر نوع الخدمة:", "الخدمات", services);
+        await sendListMessage(from, "🛠 الخدمة", "اختر نوع الخدمة:", "الخدمات", services);
         break;
+
       case "collect_service":
         state.service = input;
         if (subservices[input]) {
           state.step = "choose_subservice";
-          await sendListMessage(from, `🛠️ ${input}`, "اختر نوع الفرع:", "أنواع الخدمة", subservices[input]);
+          await sendListMessage(from, `🛠 ${input}`, "اختر نوع الفرع:", "أنواع الخدمة", subservices[input]);
         } else {
           await handleCustomerService(from, state, "");
         }
         break;
+
       case "choose_subservice":
         state.subservice = input;
         await handleCustomerService(from, state, input);
@@ -116,19 +164,28 @@ app.post("/", async (req, res) => {
     }
     return res.sendStatus(200);
   }
-  
+
   userStates[from] = { step: "choose_mode" };
   await sendButtonsMessage(from, "مرحبا بك من جديد!", "اختر نوع المستخدم:", ["1 - طلب خدمة", "2 - مقدم خدمة"]);
   return res.sendStatus(200);
 });
 
 async function handleCustomerService(from, state, subservice) {
-  const doc = await loadDoc();
+  const doc = new GoogleSpreadsheet(sheetId);
+  await doc.useServiceAccountAuth(creds);
+  await doc.loadInfo();
+
   const reqSheet = doc.sheetsByTitle["Requests"];
 
   if (subservice === "دروس") {
     await sendTextMessage(from, "📚 رابط قناة الدروس:\nhttps://t.me/Englishstudy2030");
-    await reqSheet.addRow({ date: new Date().toLocaleString("ar-EG"), service: state.service, subservice, district: state.district, phone: from });
+    await reqSheet.addRow({
+      date: new Date().toLocaleString("ar-EG"),
+      service: state.service,
+      subservice,
+      district: state.district,
+      phone: from
+    });
     delete userStates[from];
     return;
   }
@@ -137,21 +194,29 @@ async function handleCustomerService(from, state, subservice) {
     const techSheet = doc.sheetsByTitle["Technicians"];
     const rows = await techSheet.getRows();
     const stationeryPerson = rows.find(r => r.service?.trim() === "قرطاسية");
-
     if (stationeryPerson?.phone) {
       await sendTextMessage(from, `📦 للتواصل مع المسؤول عن القرطاسية:\nhttps://wa.me/${stationeryPerson.phone}`);
     } else {
       await sendTextMessage(from, "❌ لا يوجد حالياً مسؤول مسجل لخدمة القرطاسية.");
     }
-
-    await reqSheet.addRow({ date: new Date().toLocaleString("ar-EG"), service: state.service, subservice, district: state.district, phone: from });
+    await reqSheet.addRow({
+      date: new Date().toLocaleString("ar-EG"),
+      service: state.service,
+      subservice,
+      district: state.district,
+      phone: from
+    });
     delete userStates[from];
     return;
   }
 
   const techSheet = doc.sheetsByTitle["Technicians"];
   const rows = await techSheet.getRows();
-  const match = rows.find(r => r.district?.trim() === state.district?.trim() && r.service?.trim() === state.service?.trim() && (r.subservice?.trim() || "") === (subservice?.trim() || ""));
+  const match = rows.find(r =>
+    r.district?.trim() === state.district?.trim() &&
+    r.service?.trim() === state.service?.trim() &&
+    (r.subservice?.trim() || "") === (subservice?.trim() || "")
+  );
 
   if (!match) {
     await sendTextMessage(from, "❌ لا يوجد فني مسجل في هذا الحي للخدمة المطلوبة حالياً.");
@@ -163,7 +228,13 @@ async function handleCustomerService(from, state, subservice) {
   await sendTextMessage(from,
     `اضغط على رابط واتس المختص التالي وارسل له رقم 1 وسيتواصل معك:\n\nhttps://wa.me/${match.phone}\n\nالحي: ${state.district}\nالخدمة: ${state.service}${subservice ? " - " + subservice : ""}\n\nعلماً أن التنفيذ والاتفاق يكون بينكما وهذه المنصة وسيطة، دون أدنى مسؤولية.`);
 
-  await reqSheet.addRow({ date: new Date().toLocaleString("ar-EG"), service: state.service, subservice, district: state.district, phone: from });
+  await reqSheet.addRow({
+    date: new Date().toLocaleString("ar-EG"),
+    service: state.service,
+    subservice,
+    district: state.district,
+    phone: from
+  });
   delete userStates[from];
 }
 
@@ -171,12 +242,12 @@ async function sendTextMessage(to, text) {
   await axios.post(`https://graph.facebook.com/v19.0/${phone_number_id}/messages`, {
     messaging_product: "whatsapp",
     to,
-    text: { body: text },
+    text: { body: text }
   }, {
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+      "Content-Type": "application/json"
+    }
   });
 }
 
@@ -199,8 +270,8 @@ async function sendButtonsMessage(to, header, body, buttons) {
   }, {
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+      "Content-Type": "application/json"
+    }
   });
 }
 
@@ -226,8 +297,26 @@ async function sendListMessage(to, header, body, sectionTitle, options) {
   }, {
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+      "Content-Type": "application/json"
+    }
+  });
+}
+
+async function saveTechnicianToSheet(state) {
+  const doc = new GoogleSpreadsheet(sheetId);
+  await doc.useServiceAccountAuth(creds);
+  await doc.loadInfo();
+  const sheet = doc.sheetsByTitle["JoinRequests"];
+  await sheet.addRow({
+    name: state.name,
+    id: state.id,
+    district: state.district,
+    service: state.service,
+    subservice: state.subservice || "",
+    phone: state.phone,
+    certificate: state.certificate,
+    submitted_at: new Date().toLocaleString("ar-EG"),
+    status: "pending"
   });
 }
 
