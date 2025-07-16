@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 const VERIFY_TOKEN = "subesta2025";
-const token = "EAAQNJ0oTVFAB..."; // اختصرته هنا
+const token = "EAAQNJ0oTVFABO6qOkSIZB5pNEyFJj533ZBZBM52R85QsEJWOYZAZC1GkG76SfBPly2NFQH7dKfsMUiQ6u6ZCfgcYBMCuymoU8W0esDY3q3VMHy9EFo3yThb9RrfKAZBEpnMK4omKI30GZCeZA30ZAjCL5BV3Rk1OCoojfkA6UsffYSshEKQ5izcZA8lhVSfj28S8H25jAZDZD"; // اختصرته هنا
 const phone_number_id = "700625943131354";
 const sheetId = "1HMS3lcMRs6h_Xhr4Z73fQFbBiyzcZfIK06FIkK1cW0E";
 
